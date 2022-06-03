@@ -1,4 +1,6 @@
 
+const MAX_AGE = 5 * 24 * 60 * 60 * 1000;
+
 export class AuthController {
   constructor(authService) {
     this.authService = authService;
@@ -21,21 +23,25 @@ export class AuthController {
     const { email, password } = req.body;
     try {
       const token = await this.authService.login({ email, password });
-      res.status(200).json(token);
+      res.cookie('refreshToken', token.refreshToken, {
+        httpOnly: true,
+        maxAge: MAX_AGE
+      });
+      res.status(200).json(token.token);
     } catch (err) {
       next(err);
     }
   }
 
-  // async refresh(req, res, next) {
-  //   const { refreshToken } = req.body;
-  //   try {
-  //     const newtoken = await this.authService.refresh(refreshToken);
-  //     res.status(200).json(newtoken);
-  //   } catch (err) {
-  //     next(err);
-  //   }
-  // }
+  async refresh(req, res, next) {
+    const { refreshToken } = req.body;
+    try {
+      const newtoken = await this.authService.refresh(refreshToken);
+      res.status(200).json(newtoken);
+    } catch (err) {
+      next(err);
+    }
+  }
 
   // async logout(req, res, next) {
   //   const { email } = req.user;

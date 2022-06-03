@@ -6,7 +6,7 @@ export class AuthService {
   constructor(userModel, refreshTokenModel, options) {
     this.userModel = userModel;
     this.refreshTokenModel = refreshTokenModel;
-    this.jwtSecret = options?.jwtSecret;
+    this.jwtSecret = options.jwtSecret;
   }
 
   async register(userData) {
@@ -15,21 +15,17 @@ export class AuthService {
     return { email: savedUser.email };
   }
 
-  async issueTokens(email) {
+  async issueTokens({ email }) {
     const TOKEN_EXPIR_TIME = Math.floor(Date.now() / 1000) + (60 * 15);
-
     const newRefreshToken = v4();
-
-    await this.refreshTokenModel.add({
-      refreshToken: newRefreshToken,
-      email,
-    });
+    const payload = { email };
+    await this.refreshTokenModel.add(newRefreshToken, payload);
 
     return {
       token: jwt.sign(
         {
           exp: TOKEN_EXPIR_TIME,
-          email,
+          email: payload.email,
         },
         this.jwtSecret,
       ),
@@ -41,8 +37,14 @@ export class AuthService {
     validateUser(userData);
     const user = await this.userModel.getByEmail(userData);
     if (user) {
-      return this.issueTokens(user.email);
+      return this.issueTokens(userData);
     }
+  }
+
+
+  async refresh(refreshToken) {
+    const userData = await this.refreshTokenModel.get(refreshToken);
+    this.issueTokens(userData);
   }
 }
 

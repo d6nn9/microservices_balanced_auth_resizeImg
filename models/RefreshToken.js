@@ -1,10 +1,12 @@
 import path from 'path';
 import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
+import { cashStorage } from '../lochal.storages/refresh.token.set.js';
 
 
 export class RefreshToken {
   constructor(storage) {
+    this.cashStorage = cashStorage;
     this.storage = path.join(storage, 'refreshTokens');
     const storageIsExist = existsSync(this.storage);
     if (!storageIsExist) {
@@ -13,49 +15,31 @@ export class RefreshToken {
   }
 
   async get(refreshToken) {
-    const tokenRecords = await fs.readdir(this.storage);
-    let email;
-    for (const record of tokenRecords) {
-      const [recordEmail, recordToken] = record.split(' ');
-      if (recordToken === refreshToken) {
-        email = recordEmail;
-        break;
-      }
+    const hasTokenInCash = this.cashStorage.has(`${refreshToken}`);
+    if (hasTokenInCash) {
+      return { refreshToken };
     }
-
-    if (!email) {
-      throw new Error('Refresh token was not found.');
-    }
-
-    return { refreshToken, email };
+    const getPath = path.join(this.storage, `${refreshToken}`);
+    const tokenRecords = await fs.readFile(getPath, { encoding: 'utf8' });
+    fs.unlink(getPath);
+    // console.log(tokenRecords);
+    // for (const record of tokenRecords) {
+    //   if (record === refreshToken) {
+    //     return { refreshToken };
+    //   }
+    // }
+    const [email] = tokenRecords.split(' ');
+    return { email };
+    // throw new Error('Refresh token was not found.');
   }
 
-  async add({ refreshToken, email }) {
-    const savePath = path.join(
-      this.storage,
-      `${email} ${refreshToken}`,
-    );
-
-    await fs.writeFile(savePath, '');
+  async add(refreshToken, { email }) {
+    const savePath = path.join(this.storage, `${refreshToken}`);
+    await fs.writeFile(savePath, `${email}`);
+    this.cashStorage.add(`${refreshToken}`);
   }
 
-  async delete(query) {
-    const queryFields = ['email', 'refreshToken'];
-    const filenamePart = query.storage ? 1 : 0;
-    const searchField = queryFields[filenamePart];
-    const tokenRecords = await fs.readdir(this.storage);
-    let tokenPath;
-
-    for (const record of tokenRecords) {
-      const currentValue = record.split(' ')[filenamePart];
-      if (currentValue === query[searchField]) {
-        tokenPath = path.join(this.storage, record);
-        await fs.unlink(tokenPath);
-      }
-    }
-
-    if (!tokenPath) {
-      throw new Error('Refresh token was not found.');
-    }
-  }
+  // async refresh(refreshToken) {
+  //   const payload = await this.get(refreshToken);
+  // }
 }
